@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MemeHub - Tempat Berbagi Meme</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <style>
+        .meme-card {
+            transition: transform 0.2s ease-in-out;
+        }
+        .meme-card:hover {
+            transform: translateY(-4px);
+        }
+        .upload-area {
+            border: 2px dashed #e5e7eb;
+            transition: all 0.3s ease;
+        }
+        .upload-area.dragover {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-50 to-blue-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 py-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <div class="text-3xl">😂</div>
+                    <h1 class="text-2xl font-bold text-gray-800">MemeHub</h1>
+                </div>
+                <div id="authSection">
+                    <!-- Login/Register buttons will appear here -->
+                    <div id="loginButtons" class="space-x-2">
+                        <button id="loginBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors">
+                            Masuk
+                        </button>
+                        <button id="registerBtn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors">
+                            Daftar
+                        </button>
+                    </div>
+                    <!-- User info will appear here when logged in -->
+                    <div id="userInfo" class="hidden items-center space-x-4">
+                        <span id="userName" class="text-gray-700"></span>
+                        <button id="logoutBtn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors">
+                            Keluar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-6xl mx-auto px-4 py-8">
+        <!-- Upload Section (only visible when logged in) -->
+        <div id="uploadSection" class="hidden mb-8">
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                    <span class="mr-2">📤</span>
+                    Upload Meme Baru
+                </h2>
+                <div id="uploadArea" class="upload-area rounded-lg p-8 text-center cursor-pointer">
+                    <div class="text-4xl mb-4">🖼️</div>
+                    <p class="text-gray-600 mb-2">Klik atau drag & drop gambar meme di sini</p>
+                    <p class="text-sm text-gray-400">Format: JPG, PNG, GIF (Max 5MB)</p>
+                    <input type="file" id="fileInput" accept="image/*" class="hidden">
+                </div>
+                <div id="uploadProgress" class="hidden mt-4">
+                    <div class="bg-gray-200 rounded-full h-2">
+                        <div id="progressBar" class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <p id="progressText" class="text-sm text-gray-600 mt-2">Mengupload...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Memes Grid -->
+        <div class="mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                <span class="mr-2">🔥</span>
+                Meme Terbaru
+            </h2>
+            <div id="memesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Sample memes will be loaded here -->
+                <div class="meme-card bg-white rounded-xl shadow-lg overflow-hidden">
+                    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23f3f4f6'/%3E%3Ctext x='200' y='140' text-anchor='middle' font-family='Arial' font-size='16' fill='%23666'%3ESample Meme%3C/text%3E%3Ctext x='200' y='160' text-anchor='middle' font-family='Arial' font-size='24' fill='%23333'%3E😂%3C/text%3E%3C/svg%3E" alt="Sample Meme" class="w-full h-64 object-cover">
+                    <div class="p-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-500">Demo User</span>
+                            <div class="flex items-center space-x-2">
+                                <button class="text-red-500 hover:text-red-600 transition-colors">
+                                    ❤️ <span class="text-sm">42</span>
+                                </button>
+                                <button class="text-blue-500 hover:text-blue-600 transition-colors">
+                                    💬 <span class="text-sm">12</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Masuk ke MemeHub</h3>
+            <form id="loginForm">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2">Email</label>
+                    <input type="email" id="loginEmail" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 text-sm font-medium mb-2">Password</label>
+                    <input type="password" id="loginPassword" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <div class="flex space-x-3">
+                    <button type="submit" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg transition-colors">
+                        Masuk
+                    </button>
+                    <button type="button" id="closeLoginModal" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 rounded-lg transition-colors">
+                        Batal
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Register Modal -->
+    <div id="registerModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Daftar di MemeHub</h3>
+            <form id="registerForm">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2">Nama</label>
+                    <input type="text" id="registerName" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2">Email</label>
+                    <input type="email" id="registerEmail" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" required>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 text-sm font-medium mb-2">Password</label>
+                    <input type="password" id="registerPassword" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" required>
+                </div>
+                <div class="flex space-x-3">
+                    <button type="submit" class="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg transition-colors">
+                        Daftar
+                    </button>
+                    <button type="button" id="closeRegisterModal" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 rounded-lg transition-colors">
+                        Batal
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase Configuration Notice -->
+    <div id="configNotice" class="fixed bottom-4 right-4 bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded-lg shadow-lg max-w-sm">
+        <div class="flex items-start">
+            <div class="text-yellow-500 mr-2">⚠️</div>
+            <div>
+                <p class="text-sm font-medium text-yellow-800">Demo Mode</p>
+                <p class="text-xs text-yellow-700 mt-1">Untuk menggunakan fitur Firebase, silakan konfigurasi kredensial Firebase Anda di bagian JavaScript.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Configuration (DEMO - Replace with your actual config)
+        const firebaseConfig = {
+            // Replace with your Firebase config
+            apiKey: "AIzaSyA4zfbfUY_HPI4aY9mFOHLoUm0jeqx-O6c",
+            authDomain: "xweb-807da.firebaseapp.com",
+            projectId: "xweb-807da",
+            storageBucket: "xweb-807da.firebasestorage.app",
+            messagingSenderId: "102962437816",
+            appId: "1:102962437816:web:cdef50bd5940775dde9e4d"
+        };
+
+        // Initialize Firebase (commented out for demo)
+        // firebase.initializeApp(firebaseConfig);
+        // const auth = firebase.auth();
+        // const storage = firebase.storage();
+        // const firestore = firebase.firestore();
+
+        // DOM Elements
+        const loginBtn = document.getElementById('loginBtn');
+        const registerBtn = document.getElementById('registerBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const loginModal = document.getElementById('loginModal');
+        const registerModal = document.getElementById('registerModal');
+        const closeLoginModal = document.getElementById('closeLoginModal');
+        const closeRegisterModal = document.getElementById('closeRegisterModal');
+        const loginForm = document.getElementById('loginForm');
+        const registerForm = document.getElementById('registerForm');
+        const uploadSection = document.getElementById('uploadSection');
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const memesGrid = document.getElementById('memesGrid');
+        const loginButtons = document.getElementById('loginButtons');
+        const userInfo = document.getElementById('userInfo');
+        const userName = document.getElementById('userName');
+
+        // Current user state
+        let currentUser = null;
+
+        // Event Listeners
+        loginBtn.addEventListener('click', () => {
+            loginModal.classList.remove('hidden');
+        });
+
+        registerBtn.addEventListener('click', () => {
+            registerModal.classList.remove('hidden');
+        });
+
+        closeLoginModal.addEventListener('click', () => {
+            loginModal.classList.add('hidden');
+        });
+
+        closeRegisterModal.addEventListener('click', () => {
+            registerModal.classList.add('hidden');
+        });
+
+        logoutBtn.addEventListener('click', () => {
+            logout();
+        });
+
+        // Upload area events
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileUpload(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileUpload(e.target.files[0]);
+            }
+        });
+
+        // Login form
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            // Demo login (replace with actual Firebase auth)
+            demoLogin(email);
+        });
+
+        // Register form
+        registerForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = document.getElementById('registerName').value;
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+            
+            // Demo register (replace with actual Firebase auth)
+            demoRegister(name, email);
+        });
+
+        // Demo Functions (Replace with actual Firebase functions)
+        function demoLogin(email) {
+            // Simulate successful login
+            currentUser = {
+                email: email,
+                displayName: email.split('@')[0]
+            };
+            updateUI();
+            loginModal.classList.add('hidden');
+            showNotification('Berhasil masuk!', 'success');
+        }
+
+        function demoRegister(name, email) {
+            // Simulate successful registration
+            currentUser = {
+                email: email,
+                displayName: name
+            };
+            updateUI();
+            registerModal.classList.add('hidden');
+            showNotification('Berhasil mendaftar!', 'success');
+        }
+
+        function logout() {
+            currentUser = null;
+            updateUI();
+            showNotification('Berhasil keluar!', 'info');
+        }
+
+        function updateUI() {
+            if (currentUser) {
+                loginButtons.classList.add('hidden');
+                userInfo.classList.remove('hidden');
+                userInfo.classList.add('flex');
+                userName.textContent = currentUser.displayName;
+                uploadSection.classList.remove('hidden');
+            } else {
+                loginButtons.classList.remove('hidden');
+                userInfo.classList.add('hidden');
+                userInfo.classList.remove('flex');
+                uploadSection.classList.add('hidden');
+            }
+        }
+
+        function handleFileUpload(file) {
+            if (!currentUser) {
+                showNotification('Silakan login terlebih dahulu!', 'error');
+                return;
+            }
+
+            // Validate file
+            if (!file.type.startsWith('image/')) {
+                showNotification('File harus berupa gambar!', 'error');
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                showNotification('Ukuran file maksimal 5MB!', 'error');
+                return;
+            }
+
+            // Show progress
+            uploadProgress.classList.remove('hidden');
+            
+            // Simulate upload progress
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 30;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                    
+                    // Simulate successful upload
+                    setTimeout(() => {
+                        uploadProgress.classList.add('hidden');
+                        progressBar.style.width = '0%';
+                        showNotification('Meme berhasil diupload!', 'success');
+                        
+                        // Add to grid (demo)
+                        addMemeToGrid(file, currentUser.displayName);
+                    }, 500);
+                }
+                
+                progressBar.style.width = progress + '%';
+                progressText.textContent = `Mengupload... ${Math.round(progress)}%`;
+            }, 200);
+        }
+
+        function addMemeToGrid(file, userName) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const memeCard = document.createElement('div');
+                memeCard.className = 'meme-card bg-white rounded-xl shadow-lg overflow-hidden';
+                memeCard.innerHTML = `
+                    <img src="${e.target.result}" alt="User Meme" class="w-full h-64 object-cover">
+                    <div class="p-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-500">${userName}</span>
+                            <div class="flex items-center space-x-2">
+                                <button class="text-red-500 hover:text-red-600 transition-colors">
+                                    ❤️ <span class="text-sm">0</span>
+                                </button>
+                                <button class="text-blue-500 hover:text-blue-600 transition-colors">
+                                    💬 <span class="text-sm">0</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Insert at the beginning
+                memesGrid.insertBefore(memeCard, memesGrid.firstChild);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            const colors = {
+                success: 'bg-green-500',
+                error: 'bg-red-500',
+                info: 'bg-blue-500'
+            };
+            
+            notification.className = `fixed top-4 right-4 ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg z-50 transform translate-x-full transition-transform duration-300`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // Slide in
+            setTimeout(() => {
+                notification.classList.remove('translate-x-full');
+            }, 100);
+            
+            // Slide out and remove
+            setTimeout(() => {
+                notification.classList.add('translate-x-full');
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+
+        // Initialize UI
+        updateUI();
+
+        // Add more sample memes
+        function loadSampleMemes() {
+            const sampleMemes = [
+                { emoji: '🐱', text: 'Cat Meme' },
+                { emoji: '🐶', text: 'Dog Meme' },
+                { emoji: '🤔', text: 'Thinking Meme' },
+                { emoji: '😎', text: 'Cool Meme' }
+            ];
+
+            sampleMemes.forEach((meme, index) => {
+                const memeCard = document.createElement('div');
+                memeCard.className = 'meme-card bg-white rounded-xl shadow-lg overflow-hidden';
+                memeCard.innerHTML = `
+                    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23f3f4f6'/%3E%3Ctext x='200' y='140' text-anchor='middle' font-family='Arial' font-size='16' fill='%23666'%3E${meme.text}%3C/text%3E%3Ctext x='200' y='160' text-anchor='middle' font-family='Arial' font-size='32' fill='%23333'%3E${meme.emoji}%3C/text%3E%3C/svg%3E" alt="${meme.text}" class="w-full h-64 object-cover">
+                    <div class="p-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-500">Demo User</span>
+                            <div class="flex items-center space-x-2">
+                                <button class="text-red-500 hover:text-red-600 transition-colors">
+                                    ❤️ <span class="text-sm">${Math.floor(Math.random() * 100)}</span>
+                                </button>
+                                <button class="text-blue-500 hover:text-blue-600 transition-colors">
+                                    💬 <span class="text-sm">${Math.floor(Math.random() * 50)}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                memesGrid.appendChild(memeCard);
+            });
+        }
+
+        // Load sample memes
+        loadSampleMemes();
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96dfb98cb45855ec',t:'MTc1NDk5OTEwOC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
